@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>數據圖表生成工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- 引入 SheetJS 用於處理 Excel 檔案 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+        :root {
+            --industrial-dark: #121417;
+            --industrial-panel: #1e2227;
+            --industrial-orange: #f59e0b;
+            --industrial-border: #3f444d;
+            --industrial-text: #e2e8f0;
+        }
+
+        body {
+            background-color: var(--industrial-dark);
+            color: var(--industrial-text);
+            font-family: 'JetBrains Mono', 'PingFang TC', monospace;
+            background-image: radial-gradient(#2d333b 0.5px, transparent 0.5px);
+            background-size: 20px 20px;
+        }
+
+        .industrial-card {
+            background: var(--industrial-panel);
+            border: 1px solid var(--industrial-border);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.05), 0 10px 15px -3px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .industrial-card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--industrial-orange);
+            opacity: 0.7;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--industrial-border);
+            background: rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+
+        .drop-zone.drag-over {
+            border-color: var(--industrial-orange);
+            background-color: rgba(245, 158, 11, 0.1);
+        }
+
+        input, select {
+            background: #0f1115 !important;
+            border: 1px solid var(--industrial-border) !important;
+            color: var(--industrial-text) !important;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--industrial-orange) !important;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f1115;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #3f444d;
+            border-radius: 3px;
+        }
+
+        .btn-industrial {
+            background: var(--industrial-orange);
+            color: #000;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            clip-path: polygon(5% 0, 100% 0, 100% 70%, 95% 100%, 0 100%, 0% 30%);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .btn-industrial:hover {
+            filter: brightness(1.2);
+            transform: translateY(-1px);
+        }
+
+        .status-tag {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 2px solid var(--industrial-orange);
+            color: var(--industrial-orange);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--industrial-border);
+            color: var(--industrial-text);
+            font-size: 10px;
+            padding: 4px 8px;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            border-color: var(--industrial-orange);
+            color: var(--industrial-orange);
+        }
+
+        .unselect-btn {
+            font-size: 9px;
+            color: #64748b;
+            text-decoration: underline;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .unselect-btn:hover {
+            color: var(--industrial-orange);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- 頂部導覽列 -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-gray-700 pb-4">
+            <div>
+                <h1 class="text-2xl font-black flex items-center gap-2">
+                    <span class="text-amber-500">[</span> 數據圖表生成工具(CSV/EXCEL) v2.7 <span class="text-amber-500">]</span>
+                </h1>
+                <p class="text-xs text-gray-600 uppercase tracking-[0.2em]">CREATED BY RANDY CHEN ©2026</p>
+            </div>
+            <div id="clock" class="text-amber-500 font-mono text-xl hidden md:block"></div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- 側邊控制台 -->
+            <div class="lg:col-span-3 space-y-4">
+                <div class="industrial-card p-5 rounded-sm">
+                    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M3 12v3c0 1.1.9 2 2 2h10a2 2 0 002-2v-3a2 2 0 012-2h2a2 2 0 002-2V5a2 2 0 00-2-2H3a2 2 0 00-2 2v2a2 2 0 012 2v3z"/></svg>
+                        檔案載入程序
+                    </h2>
+                    
+                    <div id="dropZone" class="drop-zone rounded-sm p-6 text-center cursor-pointer mb-4">
+                        <p class="text-[10px] text-gray-400 uppercase mb-2">Drag & Drop Source</p>
+                        <p class="text-xs font-bold text-amber-500">選擇 CSV / EXCEL 檔案</p>
+                        <input type="file" id="fileInput" class="hidden" accept=".csv, .xlsx, .xls">
+                    </div>
+
+                    <div id="configArea" class="space-y-4 hidden animate-pulse-once">
+                        <!-- 圖表標題設定 -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">圖表標題 (Title)</label>
+                            <input type="text" id="chartTitleInput" placeholder="輸入圖表名稱敘述" class="w-full rounded-sm text-xs p-2 outline-none">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="space-y-1">
+                                <label class="text-[10px] text-gray-500 uppercase font-bold">X 軸單位</label>
+                                <input type="text" id="xUnit" placeholder="如:秒" class="w-full rounded-sm text-xs p-2 outline-none">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] text-gray-500 uppercase font-bold">Y 軸單位</label>
+                                <input type="text" id="yUnit" placeholder="如:V" class="w-full rounded-sm text-xs p-2 outline-none">
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">可視化模式</label>
+                            <select id="chartType" class="w-full rounded-sm text-sm p-2 outline-none">
+                                <option value="line">折線追蹤 (LINE)</option>
+                                <option value="bar">分段長條 (BAR)</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">X 軸數據映射</label>
+                            <select id="xAxisSelect" class="w-full rounded-sm text-sm p-2 outline-none"></select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-end">
+                                <label class="text-[10px] text-gray-500 uppercase font-bold">Y 軸參數選擇</label>
+                                <span id="unselectAllBtn" class="unselect-btn uppercase font-bold">Unselect All</span>
+                            </div>
+                            <div id="yAxisOptions" class="custom-scrollbar max-h-48 overflow-y-auto border border-gray-700 rounded-sm p-2 space-y-2 bg-black/30">
+                                <!-- 動態生成 -->
+                            </div>
+                        </div>
+
+                        <button id="renderBtn" class="btn-industrial w-full py-3 mt-4 text-sm">
+                            執行渲染程序
+                        </button>
+                    </div>
+                </div>
+
+                <div id="statusInfo" class="hidden status-tag p-4 text-[10px] font-mono leading-relaxed">
+                    <div class="flex justify-between border-b border-amber-900/30 mb-1">
+                        <span>FILE_ID:</span> <span id="fileNameDisplay" class="text-white"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>RECORDS:</span> <span id="rowCountDisplay" class="text-white"></span>
+                    </div>
+                    <div class="mt-2 text-gray-500">SYSTEM READY...</div>
+                </div>
+            </div>
+
+            <!-- 主顯示幕 -->
+            <div class="lg:col-span-9">
+                <div class="industrial-card p-4 rounded-sm h-[600px] flex flex-col relative overflow-hidden">
+                    <!-- 工具欄 -->
+                    <div class="absolute top-2 right-4 flex gap-3 z-10">
+                        <button id="downloadBtn" class="btn-secondary hidden">SAVE_IMG</button>
+                        <div class="flex gap-1 pt-2">
+                            <div class="w-1 h-1 bg-gray-600"></div>
+                            <div class="w-1 h-1 bg-gray-600"></div>
+                            <div class="w-1 h-1 bg-amber-500"></div>
+                        </div>
+                    </div>
+
+                    <div id="emptyState" class="flex-1 flex flex-col items-center justify-center opacity-30">
+                        <div class="w-24 h-24 border-2 border-dashed border-gray-500 rounded-full flex items-center justify-center mb-4">
+                            <span class="animate-ping absolute inline-flex h-16 w-16 rounded-full bg-amber-500 opacity-20"></span>
+                            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </div>
+                        <p class="text-sm uppercase tracking-widest text-center">支援 CSV 與 Excel 格式<br>Awaiting Input Signal...</p>
+                    </div>
+                    
+                    <div id="chartContainer" class="hidden flex-1 relative p-2">
+                        <canvas id="myChart"></canvas>
+                    </div>
+
+                    <div class="mt-2 pt-2 border-t border-gray-800 flex justify-between items-center text-[9px] text-gray-500 uppercase">
+                        <span>Console Output: Excel/CSV parsing engine active</span>
+                        <span>Level: Administrator</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('en-GB', { hour12: false });
+            document.getElementById('clock').textContent = `[ ${time} ]`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const xAxisSelect = document.getElementById('xAxisSelect');
+        const yAxisOptions = document.getElementById('yAxisOptions');
+        const configArea = document.getElementById('configArea');
+        const chartContainer = document.getElementById('chartContainer');
+        const emptyState = document.getElementById('emptyState');
+        const renderBtn = document.getElementById('renderBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const xUnitInput = document.getElementById('xUnit');
+        const yUnitInput = document.getElementById('yUnit');
+        const chartTitleInput = document.getElementById('chartTitleInput');
+        const unselectAllBtn = document.getElementById('unselectAllBtn');
+        
+        let rawData = [];
+        let headers = [];
+        let currentChart = null;
+
+        const industrialColors = [
+            '#f59e0b', // Amber
+            '#3b82f6', // Blue
+            '#10b981', // Emerald
+            '#ef4444', // Red
+            '#8b5cf6', // Violet
+            '#06b6d4', // Cyan
+        ];
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        dropZone.addEventListener('dragover', () => dropZone.classList.add('drag-over'));
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            dropZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            const fileName = file.name;
+            const extension = fileName.split('.').pop().toLowerCase();
+
+            if (extension === 'csv') {
+                parseCSV(file);
+            } else if (extension === 'xlsx' || extension === 'xls') {
+                parseExcel(file);
+            } else {
+                alert('不支援的檔案格式，請上傳 CSV 或 Excel。');
+            }
+        }
+
+        function parseCSV(file) {
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    rawData = results.data;
+                    headers = results.meta.fields;
+                    setupControls(file.name);
+                }
+            });
+        }
+
+        function parseExcel(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+                
+                if (jsonData.length > 0) {
+                    rawData = jsonData;
+                    headers = Object.keys(jsonData[0]);
+                    setupControls(file.name);
+                } else {
+                    alert('Excel 檔案內沒有發現有效的數據。');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function setupControls(fileName) {
+            xAxisSelect.innerHTML = '';
+            yAxisOptions.innerHTML = '';
+
+            headers.forEach(header => {
+                const opt = document.createElement('option');
+                opt.value = header;
+                opt.textContent = header;
+                xAxisSelect.appendChild(opt);
+
+                const isNumeric = rawData.some(row => typeof row[header] === 'number');
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-3 p-1 hover:bg-white/5 transition-colors';
+                div.innerHTML = `
+                    <input type="checkbox" id="y-${header}" value="${header}" 
+                           class="y-check w-4 h-4 rounded-none border-gray-600 bg-transparent text-amber-500 focus:ring-amber-500/50" 
+                           ${isNumeric ? 'checked' : ''}>
+                    <label for="y-${header}" class="text-xs text-gray-300 cursor-pointer select-none truncate">
+                        ${header} ${!isNumeric ? '<span class="text-red-500 opacity-50 text-[8px]">[TEXT]</span>' : ''}
+                    </label>
+                `;
+                yAxisOptions.appendChild(div);
+            });
+
+            configArea.classList.remove('hidden');
+            document.getElementById('statusInfo').classList.remove('hidden');
+            downloadBtn.classList.remove('hidden');
+            document.getElementById('fileNameDisplay').textContent = fileName;
+            document.getElementById('rowCountDisplay').textContent = rawData.length;
+            
+            updateChart();
+        }
+
+        unselectAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('.y-check').forEach(cb => {
+                cb.checked = false;
+            });
+        });
+
+        function updateChart() {
+            const xField = xAxisSelect.value;
+            const yFields = Array.from(document.querySelectorAll('.y-check:checked')).map(cb => cb.value);
+            const type = document.getElementById('chartType').value;
+            const chartTitle = chartTitleInput.value || '';
+
+            if (yFields.length === 0) {
+                if (currentChart) currentChart.destroy();
+                chartContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            const labels = rawData.map(row => row[xField] === null || row[xField] === undefined ? 'N/A' : row[xField]);
+            const datasets = yFields.map((field, idx) => {
+                const color = industrialColors[idx % industrialColors.length];
+                return {
+                    label: field.toUpperCase(),
+                    data: rawData.map(row => row[field]),
+                    backgroundColor: color + '33',
+                    borderColor: color,
+                    borderWidth: 2,
+                    pointBackgroundColor: color,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    tension: 0.1,
+                    fill: type === 'line' ? false : true
+                };
+            });
+
+            if (currentChart) currentChart.destroy();
+
+            emptyState.classList.add('hidden');
+            chartContainer.classList.remove('hidden');
+
+            const ctx = document.getElementById('myChart').getContext('2d');
+            
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.font.family = "'JetBrains Mono', 'PingFang TC', monospace";
+
+            currentChart = new Chart(ctx, {
+                type: type,
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    animation: { duration: 800, easing: 'easeOutQuart' },
+                    plugins: {
+                        title: {
+                            display: !!chartTitle,
+                            text: chartTitle,
+                            color: '#f59e0b',
+                            font: { size: 16, weight: 'bold' },
+                            padding: { bottom: 20 }
+                        },
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 10, padding: 15, font: { size: 10, weight: 'bold' }, usePointStyle: true }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(30, 34, 39, 0.95)',
+                            titleColor: '#f59e0b',
+                            borderColor: '#3f444d',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 0,
+                            bodyFont: { size: 11 }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            grid: { color: 'rgba(255,255,255,0.05)', borderDash: [5, 5] },
+                            title: {
+                                display: !!yUnitInput.value,
+                                text: yUnitInput.value,
+                                color: '#f59e0b',
+                                font: { size: 11, weight: 'bold' }
+                            },
+                            ticks: { font: { size: 9 }, padding: 8 }
+                        },
+                        x: { 
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            title: {
+                                display: !!xUnitInput.value,
+                                text: xUnitInput.value,
+                                color: '#f59e0b',
+                                font: { size: 11, weight: 'bold' }
+                            },
+                            ticks: { 
+                                font: { size: 9 }, 
+                                maxRotation: 45, 
+                                minRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 20 
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            const title = chartTitleInput.value || 'Industrial_Data';
+            link.download = `${title}_${Date.now()}.png`;
+            link.href = document.getElementById('myChart').toDataURL('image/png');
+            link.click();
+        });
+
+        renderBtn.addEventListener('click', updateChart);
+
+        // 阻擋滑鼠右鍵選單功能
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        }, false);
+    </script>
+</body>
+</html>
