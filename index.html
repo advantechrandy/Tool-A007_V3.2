@@ -141,7 +141,7 @@
         <header class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-gray-700 pb-4">
             <div>
                 <h1 class="text-2xl font-black flex items-center gap-2">
-                    <span class="text-amber-500">[</span> 數據圖表生成工具(CSV/EXCEL) v3.2 <span class="text-amber-500">]</span>
+                    <span class="text-amber-500">[</span> 數據圖表生成工具(CSV/EXCEL) v3.7 <span class="text-amber-500">]</span>
                 </h1>
                 <p class="text-xs text-gray-600 uppercase tracking-[0.2em]">CREATOR:RANDY CHEN ©2026</p>
             </div>
@@ -537,32 +537,34 @@
                 let maxVal = 'N/A', minVal = 'N/A', avgVal = 'N/A';
                 
                 if (numericData.length > 0) {
-                    maxVal = Math.max(...numericData);
-                    minVal = Math.min(...numericData);
+                    // 強制轉換為小數點以下兩位數
+                    maxVal = Math.max(...numericData).toFixed(2);
+                    minVal = Math.min(...numericData).toFixed(2);
                     const sum = numericData.reduce((a, b) => a + b, 0);
-                    // 平均值取到小數四位，並去除多餘的零
-                    avgVal = +(sum / numericData.length).toFixed(4); 
+                    // 平均值取到小數兩位
+                    avgVal = (sum / numericData.length).toFixed(2); 
                 }
 
-                // 建立該變數的統計 UI 卡片
+                // 建立該變數的統計 UI 卡片 (V3.7 修正：透過 padding-bottom 撐大隱藏範圍，防止截圖時文字底部被裁切)
                 statsHTML += `
-                    <div class="bg-black/30 border border-gray-700 p-2 rounded-sm relative overflow-hidden">
+                    <div class="bg-black/30 border border-gray-700 p-3 rounded-sm relative overflow-hidden">
                         <div class="absolute left-0 top-0 w-1 h-full" style="background-color: ${color}"></div>
-                        <div class="text-[10px] text-gray-400 font-bold mb-2 ml-2 truncate" title="${yObj.alias.toUpperCase()}">
+                        <!-- 修改這裡：加入 padding-bottom: 4px; 來撐大文字框，並用 margin-bottom: 8px; 推開下方的網格 -->
+                        <div class="text-[12px] text-gray-300 font-bold ml-3 truncate" style="line-height: normal; padding-top: 4px; padding-bottom: 4px; margin-bottom: 8px;" title="${yObj.alias.toUpperCase()}">
                             ${yObj.alias.toUpperCase()}
                         </div>
-                        <div class="grid grid-cols-3 gap-1 ml-2 text-center">
-                            <div class="bg-[#0f1115] rounded-sm py-1 border border-gray-800">
-                                <div class="text-[8px] text-gray-500 mb-0.5">AVG</div>
-                                <div class="text-[10px] font-mono text-amber-500">${avgVal}</div>
+                        <div class="grid grid-cols-3 gap-2 ml-3 text-center">
+                            <div class="bg-[#0f1115] rounded-sm py-2 px-1 border border-gray-800">
+                                <div class="text-[9px] text-gray-500" style="margin-bottom: 6px; line-height: 1.2;">AVG</div>
+                                <div class="text-[11px] font-mono text-amber-500" style="line-height: 1.2;">${avgVal}</div>
                             </div>
-                            <div class="bg-[#0f1115] rounded-sm py-1 border border-gray-800">
-                                <div class="text-[8px] text-gray-500 mb-0.5">MAX</div>
-                                <div class="text-[10px] font-mono text-white">${maxVal}</div>
+                            <div class="bg-[#0f1115] rounded-sm py-2 px-1 border border-gray-800">
+                                <div class="text-[9px] text-gray-500" style="margin-bottom: 6px; line-height: 1.2;">MAX</div>
+                                <div class="text-[11px] font-mono text-white" style="line-height: 1.2;">${maxVal}</div>
                             </div>
-                            <div class="bg-[#0f1115] rounded-sm py-1 border border-gray-800">
-                                <div class="text-[8px] text-gray-500 mb-0.5">MIN</div>
-                                <div class="text-[10px] font-mono text-white">${minVal}</div>
+                            <div class="bg-[#0f1115] rounded-sm py-2 px-1 border border-gray-800">
+                                <div class="text-[9px] text-gray-500" style="margin-bottom: 6px; line-height: 1.2;">MIN</div>
+                                <div class="text-[11px] font-mono text-white" style="line-height: 1.2;">${minVal}</div>
                             </div>
                         </div>
                     </div>
